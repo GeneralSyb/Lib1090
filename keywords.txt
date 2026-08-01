@@ -1,0 +1,37 @@
+#######################################
+# Syntax Coloring Map For Lib1090
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+Lib1090Driver	KEYWORD1
+adsb_raw_frame_t	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+receiveFrame	KEYWORD2
+setAgcGainManual	KEYWORD2
+setRxBoost	KEYWORD2
+setXoscCpTrim	KEYWORD2
+logStatus	KEYWORD2
+dioPin	KEYWORD2
+AdsbCrc24	KEYWORD2
+CheckAdsbFrame	KEYWORD2
+
+#######################################
+# Constants (KEYWORD3)
+#######################################
+
+LR2021_NO_ERROR	KEYWORD3
+LR2021_TIMEOUT	KEYWORD3
+ADSB_NO_ERROR	KEYWORD3
+ADSB_RX_TIMEOUT	KEYWORD3
+ADSB_CRC_ERROR	KEYWORD3
+ADSB_SPURIOUS_DIO	KEYWORD3
+ADSB_INCORRECT_LENGTH	KEYWORD3
+ADSB_CRC24_POLY	KEYWORD3
