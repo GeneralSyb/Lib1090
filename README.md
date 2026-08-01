@@ -3,6 +3,77 @@
 # Lib1090
 Lib1090 is a simple Arduino library that turns an LR2021 into a 1090 MHz ADS-B receiver.
 
+# Installation
+Head over to the [releases](https://github.com/GeneralSyb/Lib1090/releases) section and download the latest release of Lib1090. In the Arduino IDE head over to `Sketch -> Include Library -> Include .ZIP library...` and select the .ZIP file you just downloaded.
+## Usage
+Include Lib1090 and Arduino's SPI library using:
+```cpp
+#include "Lib1090.h"
+#include <SPI.h>
+```
+Create a variable for all the required pins:
+```cpp
+static const uint8_t PIN_SPI_SCK  = 40; // SPI Clock
+static const uint8_t PIN_SPI_MOSI = 41; // SPI Master Out Slave In
+static const uint8_t PIN_SPI_MISO = 42; // SPI Master In Slave Out
+static const uint8_t PIN_LR_NSS   = 38; // LR2021 Chip Select
+static const uint8_t PIN_LR_BUSY  = 47; // LR2021 Busy Input
+static const uint8_t PIN_LR_RESET = 2;  // LR2021 NRESET Output
+static const uint8_t PIN_LR_DIO   = 1;  // Microcontroller DIO Input
+static const uint8_t LR_DIO_NUM   = 5;  // LR2021 IRQ DIO Number
+```
+Create an SPI and Lib1090Driver class:
+```cpp
+SPIClass LrSPI(FSPI); // Use FSPI or HSPI on ESP32-C6 or S3, platform dependent
+Lib1090Driver lr(LrSPI, PIN_LR_NSS, PIN_LR_BUSY, PIN_LR_RESET, PIN_LR_DIO, LR_DIO_NUM);
+```
+Create an ISR for the RX interrupt:
+```cpp
+volatile int nPackets = 0;
+
+// IRAM_ATTR wrap in case it is being compiled for something other than an ESP32
+#ifndef IRAM_ATTR
+  #define IRAM_ATTR
+#endif
+
+void IRAM_ATTR onIRQ() {
+  noInterrupts();
+  nPackets = nPackets + 1;
+  interrupts();
+}
+```
+In the `void setup()` function, start the SPI peripheral with the correct pins and start the LR2021:
+```cpp
+// Certain boards don't come with external trim capacitors, because the LR2021 has internal configurable trim capacitors.
+// In that case uncomment the line below and replace the values with the correct values for your oscillator.
+// See datasheet for more information.
+// lr.setXoscCpTrim(10, 10, 100); 
+LrSPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, PIN_LR_NSS); // Start SPI on custom pins
+lr.begin(7, 0); // Start LR2021 with maximum LNA gain and automatic gain control
+attachInterrupt(digitalPinToInterrupt(PIN_LR_DIO), onIRQ, RISING); // Attach rising edge interrupt to IRQ pin
+```
+And in the `void loop()` function, check if any packets are in the RX FIFO, retrieve them and check the data inside:
+```cpp
+noInterrupts();
+uint8_t pending = nPackets;
+interrupts();
+
+// Check if packets are ready for retrieval from RX FIFO
+if (pending != 0) {
+    adsb_raw_frame_t f;
+    int8_t result = lr.receiveFrame(&f);
+
+    if (result == ADSB_NO_ERROR && CheckAdsbFrame(f.bytes, f.len)) {
+        // Process packet
+    }
+
+    noInterrupts();
+    nPackets--;
+    interrupts();
+}
+```
+For more information, check out the AVR output example.
+
 # Hardware
 The LR2021 from Semtech is not meant for receiving ADS-B data at 1090 MHz. It's primarily a LoRa and NTN transceiver for the 150-960 MHz and 1500-2500 MHz bands, however the LO can be programmed anywhere from 150 to 2500 MHz.
 
