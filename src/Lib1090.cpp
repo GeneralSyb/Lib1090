@@ -444,32 +444,49 @@ int8_t Lib1090Driver::receiveFrame(adsb_raw_frame_t *out)
 {
     uint32_t irqs = getAndClearIrq();
 
-    if (irqs & IRQ_MASK_TIMEOUT) {
-        return ADSB_RX_TIMEOUT;
-    }
-    if (irqs & IRQ_MASK_CRC_ERROR) {
+    if (irqs & IRQ_MASK_TIMEOUT) return ADSB_RX_TIMEOUT;
+
+    if (!_hdrActive && (irqs & IRQ_MASK_CRC_ERROR)) {
         clearRxFifo();
         return ADSB_CRC_ERROR;
     }
-    if (!(irqs & IRQ_MASK_RX_DONE)) {
-        return ADSB_SPURIOUS_DIO;
-    }
+    if (!(irqs & IRQ_MASK_RX_DONE)) return ADSB_SPURIOUS_DIO;
 
     uint16_t scratch;
     getOokPacketStatus(&scratch, &out->rssi, &out->lqi);
 
-    out->len = getRxPktLength();
-    if (out->len == 0 || out->len > 14) {
-        return ADSB_INCORRECT_LENGTH;
-    }
+    uint16_t pktLen = getRxPktLength();
 
-    readRxFifo(out->bytes, out->len);
+    if (_hdrActive) {
+        uint8_t raw[14] = {0};
+        uint8_t rawLen = (pktLen > 14) ? 14 : (uint8_t)pktLen;
+        readRxFifo(raw, rawLen);
+        reconstructFrame(_hdrDfBits, raw, rawLen, out->bytes, 14);
+        out->len = 14;
+    } else {
+        if (pktLen == 0 || pktLen > 14) return ADSB_INCORRECT_LENGTH;
+        out->len = (uint8_t)pktLen;
+        readRxFifo(out->bytes, out->len);
+    }
 
     return ADSB_NO_ERROR;
 }
 
 void Lib1090Driver::setRxBoost(uint8_t rxBoost) {
     setRxPath(0x00, rxBoost);
+}
+
+int Lib1090Driver::setHdrSync(uint8_t df)
+{
+    _hdrDfBits = (df == 18) ? 0x12 : 0x11; // 0b10010 / 0b10001
+    _hdrActive = true;
+    return setOokSyncword(_hdrDfBits, BIT_ORDER_MSB, 5);
+}
+
+int Lib1090Driver::clearHdrSync()
+{
+    _hdrActive = false;
+    return setOokSyncword(0, BIT_ORDER_LSB, 0);
 }
 
 /* ADS-B Helpers */
@@ -497,4 +514,20 @@ bool CheckAdsbFrame(const uint8_t *frame, uint8_t len) {
 
     uint8_t df = frame[0] >> 3;
     return (df == 17u || df == 18u);
+}
+
+void reconstructFrame(uint8_t df5, const uint8_t *fifoBytes, uint8_t fifoLen, uint8_t *out, uint8_t outLen)
+{
+    uint32_t acc = df5 & 0x1F;
+    uint8_t accBits = 5;
+    uint8_t outIdx = 0;
+
+    for (uint8_t i = 0; i < fifoLen && outIdx < outLen; i++) {
+        acc = (acc << 8) | fifoBytes[i];
+        accBits += 8;
+        while (accBits >= 8 && outIdx < outLen) {
+            accBits -= 8;
+            out[outIdx++] = (uint8_t)(acc >> accBits);
+        }
+    }
 }

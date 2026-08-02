@@ -49,6 +49,7 @@ void setup() {
   lr.setXoscCpTrim(10, 10, 100);
   LrSPI.begin(PIN_SPI_SCK, PIN_SPI_MISO, PIN_SPI_MOSI, PIN_LR_NSS); // Start SPI on custom pins
   lr.begin(7, 0); // Start LR2021 with maximum LNA gain and automatic gain control
+  lr.setHdrSync(17); // DF17 preamble extension for AGC settling on strong signals
   attachInterrupt(digitalPinToInterrupt(PIN_LR_DIO), onIRQ, RISING); // Attach rising edge interrupt to IRQ pin
 }
 

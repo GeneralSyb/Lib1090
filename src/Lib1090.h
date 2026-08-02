@@ -20,6 +20,8 @@
 
 #define ADSB_CRC24_POLY 0x00FFF409UL
 
+static const uint8_t BIT_ORDER_MSB = 0x01;
+
 /* Global tyepdef & enums */
 
 typedef struct {
@@ -51,6 +53,10 @@ public:
     // Manual LNA gain adjustment, 0..7
     void setRxBoost(uint8_t rxBoost);
 
+    // HDR mode helpers
+    int setHdrSync(uint8_t df);
+    int clearHdrSync();
+
     /* Get status of the LR2021 */
     String logStatus(const char *label);
 
@@ -60,6 +66,8 @@ private:
     SPIClass &_spi;
     SPISettings _spiSettings;
     uint8_t _nss, _busy, _reset, _dio, _dionum;
+    bool _hdrActive = false;
+    uint8_t _hdrDfBits = 0;
 
     int waitBusy(uint32_t timeoutMs);
     int spiWrite(const uint8_t *bytes, uint16_t len);
@@ -92,5 +100,5 @@ private:
 /* ADS-B Helpers */
 uint32_t AdsbCrc24(const uint8_t *data, uint8_t len);
 bool CheckAdsbFrame(const uint8_t *frame, uint8_t len);
-
+void reconstructFrame(uint8_t df5, const uint8_t *fifoBytes, uint8_t fifoLen, uint8_t *out, uint8_t outLen);
 #endif
